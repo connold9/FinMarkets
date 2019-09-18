@@ -1,0 +1,183 @@
+---
+title: "15.433 Financial Markets"
+author: "Elina Harutyunyan, Anastasia Demina, Harveer Mahajan, Devin Connolly"
+date: "September 16, 2019"
+output:
+  html_notebook:
+    df_print: paged
+    toc: yes
+  pdf_document:
+    toc: yes
+subtitle: 'Assigment 2: CAPM, FF, Carhart, and Fama-McBeth'
+header-includes:
+  - \usepackage{leading}
+  - \leading{13pt}
+---
+# Question 1 - Factor Estimation
+
+```{r}
+library(sandwich)
+library(lmtest)
+library(stargazer)
+library(reshape)
+library(dplyr)
+library(lubridate)
+library(data.table)
+
+industry_port<-read.csv("industry_portfolios.csv")
+ff_factors<-read.csv("FF_factors.csv")
+mom<-read.csv("mom.csv")
+temp<-merge(industry_port,ff_factors, by = "date")
+df<-merge(temp,mom, by = "date")
+df[which(df$date == "196301"),]
+df[which(df$date == "201812"),]
+df<-df[433:1104,]
+```
+## CAPM Alpha and Beta
+```{r}
+
+iid<-lapply(df[,2:11], function(x) lm((x-df$RF) ~ df$Mkt.RF))
+hc<-lapply(df[,2:11], function(x) coeftest(lm((x-df$RF) ~ df$Mkt.RF), vcov = vcovHC(lm((x-df$RF) ~ df$Mkt.RF), type = "HC1")))
+nw<-lapply(df[,2:11], function(x) coeftest(lm((x-df$RF) ~ df$Mkt.RF), vcov = NeweyWest(lm((x-df$RF) ~ df$Mkt.RF), lag = 6)))
+```
+##Fama-French 3 Factor Model
+```{r}
+iid_ff<-lapply(df[,2:11], function(x) lm((x-df$RF) ~ df$Mkt.RF + df$SMB + df$HML))
+hc_ff<-lapply(df[,2:11], function(x) coeftest(lm((x-df$RF) ~ df$Mkt.RF + df$SMB + df$HML), vcov = vcovHC(lm((x-df$RF) ~ df$Mkt.RF + df$SMB + df$HML), type = "HC1")))
+nw_ff<-lapply(df[,2:11], function(x) coeftest(lm((x-df$RF) ~ df$Mkt.RF + df$SMB + df$HML), vcov = NeweyWest(lm((x-df$RF) ~ df$Mkt.RF + df$SMB + df$HML), lag = 6)))
+```
+##Carhart 4 Factor Model
+```{r}
+iid_c<-lapply(df[,2:11], function(x) lm((x-df$RF) ~ df$Mkt.RF + df$SMB + df$HML + df$Mom))
+hc_c<-lapply(df[,2:11], function(x) coeftest(lm((x-df$RF) ~ df$Mkt.RF + df$SMB + df$HML + df$Mom), vcov = vcovHC(lm((x-df$RF) ~ df$Mkt.RF + df$SMB + df$HML + df$Mom), type = "HC1")))
+nw_c<-lapply(df[,2:11], function(x) coeftest(lm((x-df$RF) ~ df$Mkt.RF + df$SMB + df$HML + df$Mom), vcov = NeweyWest(lm((x-df$RF) ~ df$Mkt.RF + df$SMB + df$HML + df$Mom), lag = 6)))
+```
+
+
+```{r}
+iid1<-iid[1:5]
+iid2<-iid[6:10]
+iid_ff1<-iid_ff[1:5]
+iid_ff2<-iid_ff[6:10]
+iid_c1<-iid_c[1:5]
+iid_c2<-iid_c[6:10]
+```
+##CAPM Results
+```{r}
+
+stargazer(iid1, title="IID Errors", align=TRUE, type = "text", font.size = "tiny", notes.align = "r", column.labels = c("NoDur","Durbl","Manuf", "Enrgy","HiTec" ))
+
+stargazer(iid2, title="IID Errors", align=TRUE, type = "text", font.size = "tiny", notes.align = "r", column.labels = c("Telcm","Shops","Hlth", "Utils","Other" ))
+
+stargazer(hc, title="Heteroskedastic Errors", align=TRUE, type = "text", font.size = "tiny", notes.align = "r", column.labels = c("NoDur","Durbl","Manuf", "Enrgy","HiTec", "Telcm","Shops","Hlth", "Utils","Other" ))
+
+stargazer(nw, title="Newey-West Errors", align=TRUE, type = "text", font.size = "tiny", notes.align = "r", column.labels = c("NoDur","Durbl","Manuf", "Enrgy","HiTec", "Telcm","Shops","Hlth", "Utils","Other" ))
+```
+##Fama-French Results
+
+Under the Fama-French 3 Factor Model, the market risk factor is signifcant for every industry in the sample. The SMB factor was signifcant to 1% or 5% level for all industries except manufacturing. The HML factor was significant for all factors (once again to 1% or 5% level) except shops. The only industries to generate statistically signifcant alpha were other, healthcare, durables, and non durables. Healthcare offered the highest alpha (0.4% per month) while durables offered the lowest (-0.39% per month). 
+
+Under the Carhart model, which adds the momentum factor (MOM), results change considerably. The market risk premium remains signicant for each industry. As before, SMB is signicant for all industries except manufacturing. The HML is significant to a 5% level or lower for each industry except shops and telecommunications. The MOM factor is significant to a 5% level or lower for each industry except for non-durables and utilities. While healthcare still offers the highest monthly alpha of 0.348%, it is fallen with the addition of the new factor. Similarly for durables, which fell to -0.18%. It is interesting to note that the alpha is closer to 0 after adding MOM for every industry except shops, which offers a statistically significant alpha once MOM is added. 
+```{r}
+stargazer(iid_ff1, title="IID Errors", align=TRUE, type = "text", font.size = "tiny", notes.align = "r", column.labels = c("NoDur","Durbl","Manuf", "Enrgy","HiTec" ))
+
+stargazer(iid_ff2, title="IID Errors", align=TRUE, type = "text", font.size = "tiny", notes.align = "r", column.labels = c("Telcm","Shops","Hlth", "Utils","Other" ))
+
+stargazer(hc_ff, title="Heteroskedastic Errors", align=TRUE, type = "text", font.size = "tiny", notes.align = "r", column.labels = c("NoDur","Durbl","Manuf", "Enrgy","HiTec", "Telcm","Shops","Hlth", "Utils","Other" ))
+
+stargazer(nw_ff, title="Newey-West Errors", align=TRUE, type = "text", font.size = "tiny", notes.align = "r", column.labels = c("NoDur","Durbl","Manuf", "Enrgy","HiTec", "Telcm","Shops","Hlth", "Utils","Other" ))
+```
+##Carhart Results
+```{r}
+
+stargazer(iid_c1, title="IID Errors", align=TRUE, type = "text", font.size = "tiny", notes.align = "r", column.labels = c("NoDur","Durbl","Manuf", "Enrgy","HiTec" ))
+
+stargazer(iid_c2, title="IID Errors", align=TRUE, type = "text", font.size = "tiny", notes.align = "r", column.labels = c("Telcm","Shops","Hlth", "Utils","Other" ))
+
+stargazer(hc_c, title="Heteroskedastic Errors", align=TRUE, type = "text", font.size = "tiny", notes.align = "r", column.labels = c("NoDur","Durbl","Manuf", "Enrgy","HiTec", "Telcm","Shops","Hlth", "Utils","Other" ))
+
+stargazer(nw_c, title="Newey-West Errors", align=TRUE, type = "text", font.size = "tiny", notes.align = "r", column.labels = c("NoDur","Durbl","Manuf", "Enrgy","HiTec", "Telcm","Shops","Hlth", "Utils","Other" ))
+```
+# Question 2 - Fama McBeth
+```{r}
+ff_factors<-read.csv("FF_factors.csv")
+colnames(ff_factors)[1] <- "Date"
+industry_returns<-read.csv("industry_vw_returns.csv")
+bm_ratios<-read.csv("bm_ratio.csv")
+firm_size<-read.csv("firm_size.csv")
+
+fmcbeth<-merge(ff_factors,industry_returns, by = "Date")
+fmcbeth[which(fmcbeth$Date == "196301"),]
+fmcbeth[which(fmcbeth$Date == "201901"),]
+fmcbeth<-fmcbeth[439:1111,]
+
+#subtracting the risk free returns from the industry returns
+fmcbeth[,6:ncol(fmcbeth)] <- fmcbeth[,6:ncol(fmcbeth)]-fmcbeth[,5]
+
+#firm size
+firm_size[,-1]<-apply(firm_size[,-1],2, FUN = log)
+
+#lead returns
+fmcbeth<-fmcbeth[,-5:-2]
+date1<-data.frame(fmcbeth[,1])
+fmcbeth1<-apply(fmcbeth, 2, FUN = lead)
+fmcbeth1<-data.frame(fmcbeth1)
+fmcbeth1<-cbind(date1, fmcbeth1)
+fmcbeth1<-fmcbeth1[1:672,]
+fmcbeth1$Date<-NULL
+names(fmcbeth1)[1]<-"Date"
+#transforming to the long format
+
+long_returns <- melt(fmcbeth1, id.vars = "Date")
+names(long_returns)<-c("Date", "industry", "returns")
+long_firmsize<-melt(firm_size, id.vars = "Date")
+names(long_firmsize)<-c("Date", "industry", "size")
+
+###################
+
+rep<-rep(1962, 11)
+rep1<-rep(1963:2017,each = 12)
+rep<-c(rep,rep1,2018)
+
+rep<-data.frame(rep)
+names(rep)<-"Date"
+bm_ratios<-merge(rep, bm_ratios, by = "Date")
+date2<-data.frame(fmcbeth1[,1])
+bm_ratios<-cbind(date2, bm_ratios)
+bm_ratios$Date<-NULL
+names(bm_ratios)[1]<-"Date"
+long_bm_ratios <- melt(bm_ratios, id.vars = "Date")
+names(long_bm_ratios)<-c("Date", "industry", "bm")
+
+temp<-merge(long_returns,long_firmsize, by = c("Date","industry"))
+df<-merge(temp, long_bm_ratios, by = c("Date","industry"))
+
+############ Run the Loop
+
+data <- as.data.table(df)
+reg.list <- list()
+cons.vec <- c()
+coef.vec1 <- c()
+coef.vec2 <- c()
+
+for (i in 1:672){
+  reg.list[[i]] <- lm(data[(30*(i-1)+1):(30*i), returns] ~ data[(30*(i-1)+1):(30*i), size] + data[(30*(i-1)+1):(30*i), bm])
+  
+  cons.vec[i] <- reg.list[[i]]$coefficients[1]
+  coef.vec1[i] <- reg.list[[i]]$coefficients[2]
+  coef.vec2[i] <- reg.list[[i]]$coefficients[3] 
+}
+
+cons.vec %>% mean()
+coef.vec1 %>% mean()
+coef.vec2 %>% mean()
+
+long_firmsize$size %>% mean()
+
+reg_results <- cbind(cons.vec, coef.vec1, coef.vec2)
+reg_results <- data.frame(reg_results)
+names(reg_results) <- c("Intercept", "Size Coef", "BM Ratio Coef")
+rownames(reg_results) <- date2$fmcbeth1...1.
+reg_results <- round(reg_results, 3)
+reg_results
+```
